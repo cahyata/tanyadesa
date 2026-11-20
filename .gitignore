@@ -1,0 +1,16 @@
+.env*
+!.env.example
+node_modules
+.next
+.hallmark/shots
+.hallmark/before
+.hallmark/compare.html
+
+.vercel
+.env*
+
+# build dan catatan lokal
+*.tsbuildinfo
+eval/run.log
+.hallmark/
+!.env.example

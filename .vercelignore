@@ -1,0 +1,3 @@
+.env*
+.hallmark
+eval/run.log

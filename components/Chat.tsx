@@ -1,0 +1,366 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { Block } from "@/lib/sop";
+import { Blocks, inline } from "./Blocks";
+import Icon from "./Icon";
+
+type Msg = {
+  role: "user" | "bot";
+  text: string;
+  sources?: string[];
+  answered?: boolean;
+  error?: boolean;
+};
+
+const SUGGESTIONS = [
+  { label: "Syarat bikin KTP baru" },
+  { label: "Anak saya baru lahir, ngurus apa dulu?" },
+  { label: "Butuh surat buat ke bank" },
+  { label: "Kantor desa buka jam berapa?" },
+] as const;
+
+type Row = { label?: string; blocks: Block[] };
+
+const LABEL_ONLY = /^(?:\*\*)?([^*:]{2,40}):(?:\*\*)?$/;
+const LABEL_INLINE =
+  /^(?:\*\*)?(Syarat|Biaya|Waktu proses|Waktu|Langkah singkat|Langkah|Catatan|Masa berlaku|Jam layanan)(?::\*\*|\*\*:|:)\s*(.+)$/i;
+
+/** Memecah teks jawaban menjadi baris berlabel (Syarat, Biaya, Waktu proses, Langkah). */
+function toRows(text: string): Row[] {
+  const rows: Row[] = [];
+  let row: Row = { blocks: [] };
+
+  const push = () => {
+    if (row.label || row.blocks.length) rows.push(row);
+    row = { blocks: [] };
+  };
+  const last = () => row.blocks[row.blocks.length - 1];
+
+  for (const raw of text.split("\n")) {
+    const t = raw.trim();
+    if (!t) continue;
+
+    const inlineLabel = t.match(LABEL_INLINE);
+    if (inlineLabel) {
+      push();
+      row = { label: inlineLabel[1], blocks: [{ kind: "p", text: inlineLabel[2] }] };
+      continue;
+    }
+    const only = t.match(LABEL_ONLY);
+    if (only) {
+      push();
+      row = { label: only[1].trim(), blocks: [] };
+      continue;
+    }
+
+    const ol = t.match(/^\d+[.)]\s+(.*)/);
+    const ul = t.match(/^[*\-•]\s+(.*)/);
+    if (ol || ul) {
+      const kind = ol ? "ol" : "ul";
+      const item = (ol ?? ul)![1];
+      const tail = last();
+      if (tail && tail.kind === kind) tail.items.push(item);
+      else row.blocks.push({ kind, items: [item] });
+      continue;
+    }
+
+    // paragraf penutup setelah daftar menjadi baris tersendiri tanpa label
+    if (row.label && row.blocks.some((b) => b.kind !== "p")) push();
+    row.blocks.push({ kind: "p", text: t });
+  }
+  push();
+  return rows;
+}
+
+const isTile = (r: Row) =>
+  !!r.label && /^(biaya|waktu)/i.test(r.label) && r.blocks.length === 1 && r.blocks[0].kind === "p";
+
+function Sheet({ text }: { text: string }) {
+  const rows = toRows(text);
+  const out: ReactNode[] = [];
+  for (let i = 0; i < rows.length; ) {
+    if (isTile(rows[i])) {
+      const start = i;
+      const group: Row[] = [];
+      while (i < rows.length && isTile(rows[i])) group.push(rows[i++]);
+      out.push(
+        <div key={`t${start}`} className="tiles">
+          {group.map((g, k) => (
+            <div key={k} className="tile">
+              <p className="tile__label">{g.label}</p>
+              <p className="tile__value">{inline((g.blocks[0] as { text: string }).text)}</p>
+            </div>
+          ))}
+        </div>,
+      );
+      continue;
+    }
+    const row = rows[i];
+    out.push(
+      <div key={`r${i}`} className={row.label ? "sheet__row" : "sheet__row sheet__row--plain"}>
+        {row.label && <p className="sheet__label">{row.label}</p>}
+        <div className="sheet__body">
+          <Blocks blocks={row.blocks} variant={row.label && /^syarat/i.test(row.label) ? "check" : undefined} />
+        </div>
+      </div>,
+    );
+    i++;
+  }
+  return <div className="sheet">{out}</div>;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone(true);
+          setTimeout(() => setDone(false), 1800);
+        } catch {
+          /* clipboard tidak tersedia */
+        }
+      }}
+      className="chip"
+      aria-label="Salin jawaban"
+    >
+      <Icon name={done ? "check" : "copy"} size={14} />
+      {done ? "Tersalin" : "Salin"}
+    </button>
+  );
+}
+
+function ShareButton({ text }: { text: string }) {
+  const plain = text.replace(/\*\*/g, "");
+  const href = `https://wa.me/?text=${encodeURIComponent(`${plain}\n\nDari TanyaDesa (demo)`)}`;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="chip" aria-label="Bagikan lewat WhatsApp">
+      <Icon name="share" size={14} />
+      Bagikan
+    </a>
+  );
+}
+
+export default function Chat() {
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const autoSent = useRef(false);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    endRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "end" });
+  }, [messages, loading]);
+
+  // Pertanyaan dari tombol "Tanya soal layanan ini" di pustaka (/?q=...)
+  useEffect(() => {
+    if (autoSent.current) return;
+    autoSent.current = true;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (!q) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    void send(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function send(raw: string) {
+    const question = raw.trim().slice(0, 500);
+    if (!question || loading) return;
+
+    const previous = [...messages].reverse().find((m) => m.role === "user")?.text;
+    setMessages((m) => [...m, { role: "user", text: question }]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, previous }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Terjadi gangguan.");
+      setMessages((m) => [
+        ...m,
+        {
+          role: "bot",
+          text: data.answer,
+          answered: data.answered,
+          sources: (data.sources ?? []).map((s: { service: string }) => s.service),
+        },
+      ]);
+    } catch (err) {
+      setMessages((m) => [
+        ...m,
+        { role: "bot", text: err instanceof Error ? err.message : "Terjadi gangguan. Silakan coba lagi.", error: true },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="chat">
+      <div className="chat__top">
+        <span className="tag">Demo • Desa Sukamaju</span>
+        <button
+          type="button"
+          onClick={() => {
+            setMessages([]);
+            setInput("");
+            fieldRef.current?.focus();
+          }}
+          disabled={messages.length === 0 || loading}
+          className="chip"
+        >
+          <Icon name="plus" size={14} />
+          Percakapan baru
+        </button>
+      </div>
+
+      <div className="log" role="log" aria-live="polite" aria-busy={loading} aria-label="Percakapan">
+        <div className="wrap stream">
+          {messages.length === 0 && (
+            <section className="msg welcome">
+              <div>
+                <h1>Mau ngurus apa hari ini?</h1>
+                <p className="lead">
+                  Tanya syarat surat dan layanan desa dengan bahasa sehari-hari. Tidak perlu tahu nama resminya.
+                </p>
+              </div>
+              <ul className="index">
+                {SUGGESTIONS.map((s) => (
+                  <li key={s.label}>
+                    <button type="button" onClick={() => send(s.label)} disabled={loading}>
+                      <span>{s.label}</span>
+                      <Icon name="arrowRight" size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="welcome__more">
+                Atau <Link href="/layanan">lihat semua layanan</Link> dan baca syaratnya langsung.
+              </p>
+            </section>
+          )}
+
+          {messages.map((m, i) =>
+            m.role === "user" ? (
+              <div key={i} className="msg turn--user">
+                <div className="ask">{m.text}</div>
+              </div>
+            ) : m.error ? (
+              <div key={i} className="msg card card--error">
+                <p className="card__error">{m.text}</p>
+              </div>
+            ) : (
+              <article key={i} className="msg card">
+                {m.answered && m.sources && m.sources.length > 0 && (
+                  <div className="card__head">
+                    <Icon name="book" size={16} />
+                    <span>{m.sources[0]}</span>
+                  </div>
+                )}
+                <Sheet text={m.text} />
+                {m.answered === false && (
+                  <p className="note">
+                    <Icon name="info" size={16} />
+                    <span>
+                      Kantor Desa Sukamaju buka Senin sampai Kamis pukul <span className="num">08.00</span> sampai{" "}
+                      <span className="num">15.00</span>, Jumat pukul <span className="num">08.00</span> sampai{" "}
+                      <span className="num">11.30</span> WIB.
+                    </span>
+                  </p>
+                )}
+                {m.answered && (
+                  <div className="card__foot">
+                    <p className="card__sources">
+                      <span>Sumber</span>
+                      {(m.sources ?? []).map((s) => (
+                        <span key={s}>{s}</span>
+                      ))}
+                    </p>
+                    <div className="card__actions">
+                      <ShareButton text={m.text} />
+                      <CopyButton text={m.text} />
+                    </div>
+                  </div>
+                )}
+              </article>
+            ),
+          )}
+
+          {loading && (
+            <div className="msg card" role="status">
+              <div className="card__head">
+                <span className="pulse" aria-hidden="true" />
+                <span>Sedang mencari informasi…</span>
+              </div>
+              <div className="sheet">
+                {[0, 1, 2].map((n) => (
+                  <div key={n} className="sheet__row">
+                    <span className="skel" />
+                    <div className="sheet__body">
+                      <span className="skel" />
+                      <span className="skel" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+      </div>
+
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(input);
+        }}
+        className="dock"
+      >
+        <div className="wrap">
+          <div className="composer">
+            <div className="field-box">
+              <label htmlFor="pertanyaan">Pertanyaan Anda</label>
+              <textarea
+                id="pertanyaan"
+                ref={fieldRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.shiftKey) return;
+                  e.preventDefault();
+                  // Enter saat memilih kandidat IME (mis. keyboard Jepang/Cina) bukan kirim
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  formRef.current?.requestSubmit();
+                }}
+                maxLength={500}
+                placeholder="Tulis pertanyaan Anda…"
+                autoComplete="off"
+                enterKeyHint="send"
+                className="field-input"
+              />
+            </div>
+            <button type="submit" disabled={loading || !input.trim()} className="key key--primary">
+              Tanya
+            </button>
+          </div>
+          <p className="disclaimer">
+            Demo portofolio dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa.
+          </p>
+        </div>
+      </form>
+    </div>
+  );
+}
