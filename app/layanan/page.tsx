@@ -22,7 +22,7 @@ export default function Page() {
   return (
     <div className="page">
       <div className="wrap wrap--wide">
-        <p className="tag">Demo • Desa Sukamaju</p>
+        <p className="tag">Prototype • Desa Sukamaju</p>
         <h1 className="page__title">Pustaka layanan</h1>
         <p className="lead">
           {services.length} layanan desa. Pilih satu untuk melihat syarat, biaya, waktu, dan langkahnya.

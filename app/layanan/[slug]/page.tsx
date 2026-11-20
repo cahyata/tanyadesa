@@ -86,7 +86,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             Bagikan
           </a>
         </div>
-        <p className="disclaimer">Data fiktif untuk demo portofolio. Pastikan ke kantor desa untuk layanan sebenarnya.</p>
+        <p className="disclaimer">Data fiktif untuk prototype. Pastikan ke kantor desa untuk layanan sebenarnya.</p>
       </div>
     </div>
   );

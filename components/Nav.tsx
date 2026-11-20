@@ -44,7 +44,7 @@ export function Rail() {
           </Link>
         ))}
       </nav>
-      <p className="rail__foot">Desa Sukamaju (fiktif). Demo portofolio.</p>
+      <p className="rail__foot">Desa Sukamaju (fiktif). Prototype.</p>
     </aside>
   );
 }

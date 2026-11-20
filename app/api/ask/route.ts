@@ -3,7 +3,7 @@ import { ask } from "@/lib/rag";
 
 export const runtime = "nodejs";
 
-// Pembatas sederhana per IP, tersimpan di memori proses. Cukup untuk demo;
+// Pembatas sederhana per IP, tersimpan di memori proses. Cukup untuk prototype;
 // di lingkungan serverless tiap instance punya hitungannya sendiri.
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 8;

@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "TanyaDesa", template: "%s · TanyaDesa" },
-  description: "Asisten AI dan pustaka layanan administrasi Desa Sukamaju (demo portofolio, data fiktif)",
+  description: "Asisten AI dan pustaka layanan administrasi Desa Sukamaju (prototype, data fiktif)",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

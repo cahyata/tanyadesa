@@ -145,7 +145,7 @@ function CopyButton({ text }: { text: string }) {
 
 function ShareButton({ text }: { text: string }) {
   const plain = text.replace(/\*\*/g, "");
-  const href = `https://wa.me/?text=${encodeURIComponent(`${plain}\n\nDari TanyaDesa (demo)`)}`;
+  const href = `https://wa.me/?text=${encodeURIComponent(`${plain}\n\nDari TanyaDesa (prototype)`)}`;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="chip" aria-label="Bagikan lewat WhatsApp">
       <Icon name="share" size={14} />
@@ -226,7 +226,7 @@ export default function Chat() {
   return (
     <div className="chat">
       <div className="chat__top">
-        <span className="tag">Demo • Desa Sukamaju</span>
+        <span className="tag">Prototype • Desa Sukamaju</span>
         <button
           type="button"
           onClick={() => {
@@ -351,7 +351,9 @@ export default function Chat() {
         <div className="wrap">
           <div className="composer">
             <div className="field-box">
-              <label htmlFor="pertanyaan">Pertanyaan Anda</label>
+              <label htmlFor="pertanyaan" className="visually-hidden">
+                Pertanyaan Anda
+              </label>
               <textarea
                 id="pertanyaan"
                 ref={fieldRef}
@@ -373,11 +375,12 @@ export default function Chat() {
               />
             </div>
             <button type="submit" disabled={loading || !input.trim()} className="key key--primary">
+              <Icon name="send" size={16} />
               Tanya
             </button>
           </div>
           <p className="disclaimer">
-            Demo portofolio dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa.
+            Prototype dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa.
           </p>
         </div>
       </form>

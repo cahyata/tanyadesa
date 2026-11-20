@@ -7,7 +7,7 @@ keywords: jam buka, alamat, kontak, loket, kantor desa, hari kerja, libur
 
 # Informasi Umum Kantor Desa Sukamaju
 
-> Data fiktif untuk demo portofolio TanyaDesa. Bukan desa sebenarnya.
+> Data fiktif untuk prototype TanyaDesa. Bukan desa sebenarnya.
 
 ## Jam layanan
 - Senin–Kamis: 08.00–15.00 WIB (istirahat 12.00–13.00)

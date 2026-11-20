@@ -640,9 +640,12 @@
   gap: var(--space-xs);
 }
 .field-box {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
-  padding: var(--space-xs) var(--space-sm);
+  min-height: 52px;
+  padding: var(--space-sm) var(--space-md);
   border: var(--rule-hair) solid color-mix(in oklab, var(--color-muted) 60%, var(--color-rule));
   border-radius: 12px;
   background: var(--color-sheet);
@@ -650,12 +653,6 @@
 .field-box:has(textarea:focus-visible) {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
-}
-.field-box label {
-  display: block;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--color-muted);
 }
 .field-input {
   display: block;
@@ -678,11 +675,19 @@
   color: var(--color-muted);
 }
 .composer .key {
-  min-height: 56px;
-  padding-inline: var(--space-lg);
+  min-height: 52px;
+  padding-inline: var(--space-md);
+}
+/* Nonaktif saat kolom kosong: jelas terbaca sebagai belum bisa dipakai, bukan pudar */
+.composer .key:disabled {
+  opacity: 1;
+  background: var(--color-paper-3);
+  border-color: var(--color-rule);
+  color: var(--color-muted);
 }
 .disclaimer {
   margin-top: var(--space-xs);
+  text-align: center;
   font-size: 0.8125rem;
   color: var(--color-muted);
 }

@@ -62,6 +62,10 @@ function clip(s: string, max: number): string {
 function shortCost(text: string): string {
   const t = plain(text);
   if (/sumbangan|dapat dikenakan/i.test(t) && /tidak dipungut/i.test(t)) return "Sesuai kegiatan";
+  if (/^Gratis/i.test(t)) return "Gratis";
+  if (/^Tidak ada biaya/i.test(t)) return "Tanpa biaya admin";
+  if (/^Retribusi/i.test(t)) return "Retribusi bulanan";
+  if (/^Biaya persiapan/i.test(t)) return "Sesuai ketetapan";
   if (/^Rp\s?0\b/i.test(t)) return /meterai/i.test(t) ? "Rp0 + meterai" : "Rp0";
   const rp = t.match(/Rp\s?[\d.]+/);
   if (rp) return rp[0].replace(/\s/g, "");
@@ -70,6 +74,11 @@ function shortCost(text: string): string {
 
 function shortTime(text: string): string {
   const t = plain(text);
+  if (/setiap saat/i.test(t)) return "Setiap saat";
+  if (/dua kali seminggu/i.test(t)) return "2x seminggu";
+  if (/^Jadwal rutin/i.test(t)) return "Jadwal rutin";
+  if (/malam hari/i.test(t)) return "Malam hari";
+  if (/saat itu juga/i.test(t)) return "Saat itu juga";
   const days = t.match(/(\d+)\s?(?:[–-]\s?(\d+)\s?)?hari kerja/i);
   if (/hari yang sama/i.test(t) && days) return `Maks. ${days[2] ?? days[1]} hari kerja`;
   if (/hari yang sama/i.test(t)) return "Hari yang sama";
