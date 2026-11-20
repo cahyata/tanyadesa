@@ -8,6 +8,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ask } from "../lib/rag";
 
+// Pertanyaan uji tidak boleh masuk ke daftar pertanyaan tak terjawab milik admin
+process.env.RAG_LOG_UNANSWERED = "0";
+
 type Item =
   | { id: number; type: "answerable"; q: string; service: string; facts: string[] }
   | { id: number; type: "out_of_scope"; q: string }
@@ -22,6 +25,7 @@ type Row = {
   answered: boolean;
   sources: string[];
   answer: string;
+  options?: string[];
 };
 
 const EVAL_DIR = path.join(process.cwd(), "eval");
@@ -38,9 +42,11 @@ function judge(item: Item, res: Awaited<ReturnType<typeof ask>>): { pass: boolea
       : { pass: true, detail: "menolak dengan benar" };
   }
   if (item.type === "ambiguous") {
-    const clarifies = res.answered && res.answer.includes("?");
+    // lulus bila memberi pilihan layanan (2 atau lebih) atau tetap mengajukan pertanyaan balik
+    const options = res.clarify?.options.length ?? 0;
+    const clarifies = res.answered && (options >= 2 || res.answer.includes("?"));
     return clarifies
-      ? { pass: true, detail: "bertanya klarifikasi" }
+      ? { pass: true, detail: options >= 2 ? `bertanya klarifikasi dengan ${options} pilihan` : "bertanya klarifikasi" }
       : { pass: false, detail: res.answered ? "menjawab tanpa bertanya balik" : "menolak" };
   }
   const hit = sources.some((s) => s.toLowerCase().includes(item.service.toLowerCase()));
@@ -66,6 +72,7 @@ async function main() {
         answered: res.answered,
         sources: res.sources.map((s) => s.service),
         answer: res.answer,
+        options: res.clarify?.options,
       });
       console.log(`${pass ? "PASS" : "FAIL"} #${item.id} ${item.q} -> ${detail}`);
     } catch (err) {

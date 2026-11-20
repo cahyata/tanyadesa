@@ -10,6 +10,8 @@ type Msg = {
   role: "user" | "bot";
   text: string;
   sources?: string[];
+  /** pilihan layanan bila pertanyaan terlalu umum */
+  options?: string[];
   answered?: boolean;
   error?: boolean;
 };
@@ -211,6 +213,7 @@ export default function Chat() {
           text: data.answer,
           answered: data.answered,
           sources: (data.sources ?? []).map((s: { service: string }) => s.service),
+          options: Array.isArray(data.clarify?.options) ? data.clarify.options : undefined,
         },
       ]);
     } catch (err) {
@@ -276,6 +279,24 @@ export default function Chat() {
               <div key={i} className="msg turn--user">
                 <div className="ask">{m.text}</div>
               </div>
+            ) : m.options ? (
+              <section key={i} className="msg clarify" aria-label="Pertanyaan lanjutan">
+                <p className="clarify__q">{m.text}</p>
+                <div className="options" role="group" aria-label="Pilih layanan yang dimaksud">
+                  {m.options.map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      className="option"
+                      onClick={() => send(o)}
+                      disabled={loading || i !== messages.length - 1}
+                    >
+                      <span>{o}</span>
+                      <Icon name="arrowRight" size={16} />
+                    </button>
+                  ))}
+                </div>
+              </section>
             ) : m.error ? (
               <div key={i} className="msg card card--error">
                 <p className="card__error">{m.text}</p>

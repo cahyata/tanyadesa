@@ -4,6 +4,9 @@
  */
 import { ask } from "../lib/rag";
 
+// Pertanyaan uji tidak boleh masuk ke daftar pertanyaan tak terjawab milik admin
+process.env.RAG_LOG_UNANSWERED = "0";
+
 async function main() {
   const question = process.argv.slice(2).join(" ");
   if (!question) {
@@ -12,6 +15,7 @@ async function main() {
   }
   const res = await ask(question);
   console.log(res.answer);
+  if (res.clarify) for (const o of res.clarify.options) console.log(`  [pilihan] ${o}`);
   console.log("\nTerjawab:", res.answered);
   for (const s of res.sources) console.log(`- ${s.service} (${s.similarity.toFixed(2)})`);
 }
