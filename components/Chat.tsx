@@ -15,10 +15,10 @@ type Msg = {
 };
 
 const SUGGESTIONS = [
-  { label: "Syarat bikin KTP baru" },
-  { label: "Anak saya baru lahir, ngurus apa dulu?" },
-  { label: "Butuh surat buat ke bank" },
-  { label: "Kantor desa buka jam berapa?" },
+  { label: "Syarat bikin KTP baru", hint: "Dokumen, biaya, dan lama proses" },
+  { label: "Anak saya baru lahir, ngurus apa dulu?", hint: "Akta kelahiran dan perubahan KK" },
+  { label: "Butuh surat buat ke bank", hint: "Surat usaha, domisili, atau penghasilan" },
+  { label: "Kantor desa buka jam berapa?", hint: "Hari dan jam pelayanan" },
 ] as const;
 
 type Row = { label?: string; blocks: Block[] };
@@ -77,8 +77,17 @@ function toRows(text: string): Row[] {
 const isTile = (r: Row) =>
   !!r.label && /^(biaya|waktu)/i.test(r.label) && r.blocks.length === 1 && r.blocks[0].kind === "p";
 
-function Sheet({ text }: { text: string }) {
-  const rows = toRows(text);
+const norm = (s: string) => s.replace(/\*\*/g, "").replace(/[:.\s]+$/g, "").trim().toLowerCase();
+
+/** title: nama layanan di header kartu; baris pembuka yang hanya mengulang nama itu dibuang. */
+function Sheet({ text, title }: { text: string; title?: string }) {
+  let rows = toRows(text);
+  const head = rows[0];
+  if (title && head && !head.label && head.blocks.length === 1 && head.blocks[0].kind === "p") {
+    const a = norm(head.blocks[0].text);
+    const b = norm(title);
+    if (a.length < 90 && (a.includes(b) || b.includes(a))) rows = rows.slice(1);
+  }
   const out: ReactNode[] = [];
   for (let i = 0; i < rows.length; ) {
     if (isTile(rows[i])) {
@@ -156,7 +165,15 @@ export default function Chat() {
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    endRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "end" });
+    const behavior = reduce ? "auto" : "smooth";
+    const last = messages[messages.length - 1];
+    if (!loading && last?.role === "bot") {
+      // jawaban panjang: tampilkan dari awal kartu, bukan dari dasarnya
+      const cards = document.querySelectorAll<HTMLElement>(".stream .card");
+      cards[cards.length - 1]?.scrollIntoView({ behavior, block: "start" });
+      return;
+    }
+    endRef.current?.scrollIntoView({ behavior, block: "end" });
   }, [messages, loading]);
 
   // Pertanyaan dari tombol "Tanya soal layanan ini" di pustaka (/?q=...)
@@ -239,7 +256,10 @@ export default function Chat() {
                 {SUGGESTIONS.map((s) => (
                   <li key={s.label}>
                     <button type="button" onClick={() => send(s.label)} disabled={loading}>
-                      <span>{s.label}</span>
+                      <span className="index__text">
+                        <span className="index__title">{s.label}</span>
+                        <span className="index__hint">{s.hint}</span>
+                      </span>
                       <Icon name="arrowRight" size={16} />
                     </button>
                   </li>
@@ -268,7 +288,7 @@ export default function Chat() {
                     <span>{m.sources[0]}</span>
                   </div>
                 )}
-                <Sheet text={m.text} />
+                <Sheet text={m.text} title={m.answered ? m.sources?.[0] : undefined} />
                 {m.answered === false && (
                   <p className="note">
                     <Icon name="info" size={16} />
