@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Block } from "@/lib/sop";
 import { Blocks, inline } from "./Blocks";
+import { MAPS_URL, OFFICE, TEL_URL, WHATSAPP_URL } from "@/lib/office";
 import Icon from "./Icon";
+import OfficeStatus from "./OfficeStatus";
 
 type Msg = {
   role: "user" | "bot";
@@ -28,6 +30,51 @@ const SUGGESTIONS = [
   { label: "Butuh surat buat ke bank", hint: "Surat usaha, domisili, atau penghasilan" },
   { label: "Kantor desa buka jam berapa?", hint: "Hari dan jam pelayanan" },
 ] as const;
+
+// Riwayat percakapan hanya disimpan di perangkat ini (localStorage), kedaluwarsa setelah 24 jam
+const STORE_KEY = "tanyadesa:chat:v1";
+const STORE_TTL_MS = 24 * 60 * 60 * 1000;
+const STORE_MAX = 40;
+
+function loadHistory(): Msg[] {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as { at?: number; messages?: unknown };
+    if (!data.at || Date.now() - data.at > STORE_TTL_MS || !Array.isArray(data.messages)) return [];
+    return (data.messages as Msg[])
+      .filter((m) => m && (m.role === "user" || m.role === "bot") && typeof m.text === "string" && !m.streaming)
+      .slice(-STORE_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(messages: Msg[]) {
+  try {
+    const keep = messages.filter((m) => !m.streaming).slice(-STORE_MAX);
+    if (keep.length === 0) localStorage.removeItem(STORE_KEY);
+    else localStorage.setItem(STORE_KEY, JSON.stringify({ at: Date.now(), messages: keep }));
+  } catch {
+    /* penyimpanan penuh atau dinonaktifkan: percakapan tetap jalan tanpa riwayat */
+  }
+}
+
+/**
+ * Saran pertanyaan lanjutan setelah jawaban: hanya topik yang BELUM dibahas jawaban itu.
+ * Pertanyaan dibuat lengkap dengan nama layanan agar tidak bergantung pada konteks sebelumnya.
+ */
+function followUps(text: string, service: string): { label: string; query: string }[] {
+  const t = text.toLowerCase();
+  const topics = [
+    { has: /syarat/, label: "Apa saja syaratnya?", query: `Apa saja syarat ${service}?` },
+    { has: /biaya|rp\s?\d|gratis/, label: "Biayanya berapa?", query: `Berapa biaya ${service}?` },
+    { has: /waktu|hari kerja|lama/, label: "Berapa lama prosesnya?", query: `Berapa lama proses ${service}?` },
+    { has: /langkah/, label: "Bagaimana langkahnya?", query: `Bagaimana langkah-langkah ${service}?` },
+    { has: /loket/, label: "Di loket mana?", query: `Di loket mana ${service} diurus?` },
+  ];
+  return topics.filter((x) => !x.has.test(t)).slice(0, 3).map(({ label, query }) => ({ label, query }));
+}
 
 type Row = { label?: string; blocks: Block[] };
 
@@ -128,6 +175,20 @@ function Sheet({ text, title }: { text: string; title?: string }) {
   return <div className="sheet">{out}</div>;
 }
 
+function FollowUps({ items, onPick }: { items: { label: string; query: string }[]; onPick: (q: string) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="followups" role="group" aria-label="Pertanyaan lanjutan">
+      <span className="followups__q">Tanya lanjut</span>
+      {items.map((x) => (
+        <button key={x.label} type="button" className="chip" onClick={() => onPick(x.query)}>
+          {x.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
@@ -184,6 +245,17 @@ export default function Chat() {
     }
     endRef.current?.scrollIntoView({ behavior: last?.streaming ? "auto" : behavior, block: "end" });
   }, [messages, loading]);
+
+  // Pulihkan riwayat setelah mount (bukan saat render, agar tidak beda dengan HTML server)
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const saved = loadHistory();
+    if (saved.length) setMessages(saved);
+    setReady(true);
+  }, []);
+  useEffect(() => {
+    if (ready) saveHistory(messages);
+  }, [messages, ready]);
 
   // Pertanyaan dari tombol "Tanya soal layanan ini" di pustaka (/?q=...)
   useEffect(() => {
@@ -304,7 +376,7 @@ export default function Chat() {
             className="chip"
           >
             <Icon name="plus" size={14} />
-            Percakapan baru
+            <span className="chip__long">Percakapan </span>baru
           </button>
         )}
       </div>
@@ -318,6 +390,7 @@ export default function Chat() {
                 <p className="lead">
                   Tanya syarat surat dan layanan desa dengan bahasa sehari-hari. Tidak perlu tahu nama resminya.
                 </p>
+                <OfficeStatus />
               </div>
               <ul className="index">
                 {SUGGESTIONS.map((s) => (
@@ -335,7 +408,7 @@ export default function Chat() {
               <p className="welcome__more">
                 Atau <Link href="/layanan">lihat semua layanan</Link> dan baca syaratnya langsung.
               </p>
-              <p className="welcome__privacy">Pertanyaan dicatat tanpa identitas untuk memperbaiki layanan.</p>
+              <p className="welcome__privacy">Pertanyaan dicatat tanpa identitas untuk memperbaiki layanan. Riwayat percakapan hanya tersimpan di perangkat Anda selama 24 jam.</p>
             </section>
           )}
 
@@ -383,14 +456,35 @@ export default function Chat() {
                   </span>
                 )}
                 {m.answered === false && (
-                  <p className="note">
-                    <Icon name="info" size={16} />
-                    <span>
-                      Kantor Desa Sukamaju buka Senin sampai Kamis pukul <span className="num">08.00</span> sampai{" "}
-                      <span className="num">15.00</span>, Jumat pukul <span className="num">08.00</span> sampai{" "}
-                      <span className="num">11.30</span> WIB.
-                    </span>
-                  </p>
+                  <div className="fallback">
+                    <p className="note">
+                      <Icon name="info" size={16} />
+                      <span>
+                        {OFFICE.name} buka Senin sampai Kamis pukul <span className="num">08.00</span> sampai{" "}
+                        <span className="num">15.00</span>, Jumat pukul <span className="num">08.00</span> sampai{" "}
+                        <span className="num">11.30</span> WIB.
+                      </span>
+                    </p>
+                    <OfficeStatus />
+                    <div className="contact" role="group" aria-label="Hubungi kantor desa">
+                      <a className="chip" href={TEL_URL}>
+                        <Icon name="phone" size={14} />
+                        Telepon
+                      </a>
+                      <a className="chip" href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                        <Icon name="message" size={14} />
+                        WhatsApp
+                      </a>
+                      <a className="chip" href={MAPS_URL} target="_blank" rel="noopener noreferrer">
+                        <Icon name="pin" size={14} />
+                        Peta
+                      </a>
+                    </div>
+                    <p className="fallback__hint">Nomor di prototype ini hanya contoh (fiktif).</p>
+                  </div>
+                )}
+                {i === messages.length - 1 && !loading && m.answered && m.sources?.[0] && (
+                  <FollowUps items={followUps(m.text, m.sources[0])} onPick={send} />
                 )}
                 {m.answered && (
                   <div className="card__foot">

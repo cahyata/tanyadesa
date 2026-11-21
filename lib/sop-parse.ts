@@ -19,6 +19,8 @@ export type Service = {
   costShort?: string;
   timeShort?: string;
   counter?: string;
+  /** waktu terakhir SOP diubah (ISO), bila diketahui */
+  updatedAt?: string;
   sections: Section[];
 };
 
@@ -82,7 +84,10 @@ function shortTime(text: string): string {
   return clip(firstSentence(t), 24);
 }
 
-export function buildService(meta: { slug: string; name: string; category: string; keywords: string }, body: string): Service {
+export function buildService(
+  meta: { slug: string; name: string; category: string; keywords: string; updatedAt?: string },
+  body: string,
+): Service {
   const lines = body.split(/\r?\n/);
   const sections: Section[] = [];
   const intro: string[] = [];
@@ -134,6 +139,7 @@ export function buildService(meta: { slug: string; name: string; category: strin
     costShort: costLead ? shortCost(costLead) : undefined,
     timeShort: timeLead ? shortTime(timeLead) : undefined,
     counter,
+    updatedAt: meta.updatedAt,
     sections,
   };
 }

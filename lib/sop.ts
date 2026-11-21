@@ -16,11 +16,14 @@ const load = unstable_cache(
   async (): Promise<Service[]> => {
     const { data, error } = await adminClient()
       .from("sop_services")
-      .select("slug, name, category, keywords, content")
+      .select("slug, name, category, keywords, content, updated_at")
       .order("slug");
     if (error) throw new Error(`Gagal membaca layanan: ${error.message}`);
     return (data ?? []).map((r) =>
-      buildService({ slug: r.slug, name: r.name, category: r.category, keywords: r.keywords }, r.content),
+      buildService(
+        { slug: r.slug, name: r.name, category: r.category, keywords: r.keywords, updatedAt: r.updated_at },
+        r.content,
+      ),
     );
   },
   ["sop-services"],

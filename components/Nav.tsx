@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Icon from "./Icon";
+import TextSize from "./TextSize";
 
 const CATEGORIES = [
   "Kependudukan",
@@ -44,6 +45,7 @@ export function Rail() {
           </Link>
         ))}
       </nav>
+      <TextSize variant="rail" />
       <p className="rail__foot">Desa Sukamaju (fiktif). Prototype.</p>
     </aside>
   );
@@ -65,6 +67,7 @@ export function MobileBar() {
         <Link href="/layanan" className="mbar__item" aria-current={active.library ? "page" : undefined}>
           Pustaka
         </Link>
+        <TextSize variant="bar" />
       </nav>
     </header>
   );

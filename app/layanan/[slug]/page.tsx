@@ -6,6 +6,7 @@ import { ServiceBody } from "@/components/ServiceBody";
 import Icon from "@/components/Icon";
 import { allServices, getService } from "@/lib/sop";
 
+const UPDATED = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tanyadesa.vercel.app";
 
 export async function generateStaticParams() {
@@ -53,6 +54,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             Bagikan
           </a>
         </div>
+        {s.updatedAt && (
+          <p className="updated">
+            Informasi diperbarui <time dateTime={s.updatedAt}>{UPDATED.format(new Date(s.updatedAt))}</time>
+          </p>
+        )}
         <p className="disclaimer">Data fiktif untuk prototype. Pastikan ke kantor desa untuk layanan sebenarnya.</p>
       </div>
     </div>
