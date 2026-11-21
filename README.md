@@ -178,6 +178,7 @@ data/sop/                49 SOP awal (markdown)
 scripts/                 ingest, ask, eval
 eval/                    Pertanyaan uji dan hasil
 supabase/schema.sql      Skema database
+.github/workflows/      CI: typecheck, dan build bila secret Supabase diatur
 ```
 
 ## Keputusan desain
