@@ -78,7 +78,9 @@ function followUps(text: string, service: string): { label: string; query: strin
 
 type Row = { label?: string; blocks: Block[] };
 
-const LABEL_ONLY = /^(?:\*\*)?([^*:]{2,40}):(?:\*\*)?$/;
+const KNOWN_LABELS = "Syarat|Biaya|Waktu proses|Waktu|Langkah singkat|Langkah|Catatan|Masa berlaku|Jam layanan";
+// "Syarat:" atau "**Syarat:**"; label yang dikenal juga diterima tanpa titik dua karena model kadang melupakannya
+const LABEL_ONLY = new RegExp(String.raw`^(?:\*\*)?(?:([^*:]{2,40}):|(${KNOWN_LABELS}))(?:\*\*)?$`, "i");
 const LABEL_INLINE =
   /^(?:\*\*)?(Syarat|Biaya|Waktu proses|Waktu|Langkah singkat|Langkah|Catatan|Masa berlaku|Jam layanan)(?::\*\*|\*\*:|:)\s*(.+)$/i;
 
@@ -106,7 +108,7 @@ function toRows(text: string): Row[] {
     const only = t.match(LABEL_ONLY);
     if (only) {
       push();
-      row = { label: only[1].trim(), blocks: [] };
+      row = { label: (only[1] ?? only[2]).trim(), blocks: [] };
       continue;
     }
 
