@@ -43,14 +43,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Pertanyaan terlalu panjang (maksimal 500 karakter)." }, { status: 400 });
   }
 
-  try {
-    const result = await ask(question, previous);
-    return NextResponse.json(result);
-  } catch (err) {
-    console.error("ask failed:", err instanceof Error ? err.message : err);
-    return NextResponse.json(
-      { error: "Terjadi gangguan pada layanan. Silakan coba lagi sebentar lagi." },
-      { status: 500 },
-    );
-  }
+  // Balasan berupa baris JSON (NDJSON): {t:"delta",text} berulang, lalu {t:"done",...hasil} atau {t:"error",error}
+  const enc = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: unknown) => controller.enqueue(enc.encode(JSON.stringify(obj) + "\n"));
+      try {
+        const result = await ask(question, previous, (text) => send({ t: "delta", text }));
+        send({ t: "done", ...result });
+      } catch (err) {
+        console.error("ask failed:", err instanceof Error ? err.message : err);
+        send({ t: "error", error: "Terjadi gangguan pada layanan. Silakan coba lagi sebentar lagi." });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store, no-transform" },
+  });
 }

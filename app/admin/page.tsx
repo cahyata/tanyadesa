@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import AdminLogin from "@/components/AdminLogin";
-import CopyDraft from "@/components/CopyDraft";
 import { adminEnabled, isAdmin } from "@/lib/admin-auth";
 import { loadAdminData, type AdminData } from "@/lib/admin";
-import { allServices } from "@/lib/sop";
-import { logout } from "./actions";
+import { logout, setIgnoredAction } from "./actions";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -27,7 +26,9 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ ignored?: string }> }) {
+  const { ignored } = await searchParams;
+  const showIgnored = ignored === "1";
   if (!adminEnabled()) {
     return (
       <Frame>
@@ -52,24 +53,31 @@ export default async function Page() {
   let data: AdminData | null = null;
   let error: string | null = null;
   try {
-    data = await loadAdminData();
+    data = await loadAdminData(showIgnored);
   } catch (e) {
     error = e instanceof Error ? e.message : "Gagal memuat data.";
   }
-  const filesCount = allServices().length;
 
   return (
     <Frame>
       <div className="admin-head">
         <div>
-          <p className="tag">Hanya baca</p>
+          <p className="tag">Pengelola</p>
           <h1 className="page__title">Admin</h1>
         </div>
-        <form action={logout}>
-          <button type="submit" className="chip">
-            Keluar
-          </button>
-        </form>
+        <div className="admin-head__actions">
+          <Link href="/admin/laporan" className="key">
+            Laporan
+          </Link>
+          <Link href="/admin/sop" className="key key--primary">
+            Kelola SOP
+          </Link>
+          <form action={logout}>
+            <button type="submit" className="key">
+              Keluar
+            </button>
+          </form>
+        </div>
       </div>
 
       {error && (
@@ -98,23 +106,30 @@ export default async function Page() {
             </div>
           </div>
 
-          {filesCount !== data.servicesInDb && (
-            <p className="note note--flush">
-              Berkas SOP di repo ({filesCount}) berbeda dari layanan di database ({data.servicesInDb}). Jalankan{" "}
-              <code>npm run ingest</code> untuk menyinkronkan.
-            </p>
-          )}
-
           <section className="panel">
-            <h2 className="panel__title">Pertanyaan yang belum terjawab</h2>
+            <div className="panel__head">
+              <h2 className="panel__title">{data.showingIgnored ? "Pertanyaan yang diabaikan" : "Pertanyaan yang belum terjawab"}</h2>
+              {data.showingIgnored ? (
+                <Link href="/admin" className="chip">
+                  Kembali ke daftar
+                </Link>
+              ) : (
+                data.ignoredTotal > 0 && (
+                  <Link href="/admin?ignored=1" className="chip">
+                    Diabaikan ({data.ignoredTotal})
+                  </Link>
+                )
+              )}
+            </div>
             <p className="panel__hint">
-              Dikelompokkan dari pertanyaan yang sama, paling sering di atas. Salin kerangka untuk membuat SOP baru di{" "}
-              <code>data/sop</code>, lalu jalankan <code>npm run ingest</code>.
+              {data.showingIgnored
+                ? "Pertanyaan ini tidak dihitung di dasbor. Pulihkan bila ternyata perlu ditangani."
+                : "Dikelompokkan dari pertanyaan yang sama, paling sering di atas. \"Buat SOP\" membuka formulir yang sudah terisi kata kuncinya; pertanyaan ditandai selesai setelah SOP disimpan. \"Abaikan\" menyembunyikan pertanyaan yang tidak perlu SOP, misalnya iseng atau salah ketik."}
               {data.truncated && " Hanya 1.000 catatan terbaru yang dihitung."}
             </p>
 
             {data.groups.length === 0 ? (
-              <p className="admin-empty">Belum ada. Semua pertanyaan sejauh ini terjawab.</p>
+              <p className="admin-empty">{data.showingIgnored ? "Tidak ada yang diabaikan." : "Belum ada. Semua pertanyaan sejauh ini terjawab."}</p>
             ) : (
               <ol className="qlist">
                 {data.groups.slice(0, 100).map((g) => (
@@ -126,7 +141,20 @@ export default async function Page() {
                       <p className="qrow__text">{g.question}</p>
                       <p className="qrow__meta">Terakhir {when.format(new Date(g.lastSeen))}</p>
                     </div>
-                    <CopyDraft question={g.question} />
+                    <div className="qrow__actions">
+                      {!data.showingIgnored && (
+                        <Link href={`/admin/sop/baru?q=${encodeURIComponent(g.question)}`} className="chip">
+                          Buat SOP
+                        </Link>
+                      )}
+                      <form action={setIgnoredAction}>
+                        <input type="hidden" name="question" value={g.question} />
+                        <input type="hidden" name="ignore" value={data.showingIgnored ? "0" : "1"} />
+                        <button type="submit" className="chip chip--quiet">
+                          {data.showingIgnored ? "Pulihkan" : "Abaikan"}
+                        </button>
+                      </form>
+                    </div>
                   </li>
                 ))}
               </ol>

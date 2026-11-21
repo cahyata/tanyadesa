@@ -1,4 +1,4 @@
-import { embedTexts, generate } from "./gemini";
+import { embedTexts, generateStream } from "./gemini";
 import { adminClient } from "./supabase";
 
 export type Answer = {
@@ -8,6 +8,8 @@ export type Answer = {
   sources: { service: string; similarity: number }[];
   /** Bila pertanyaan terlalu umum: pilihan layanan yang bisa diketuk warga (2–4 nama layanan). */
   clarify?: { options: string[] };
+  /** id catatan di question_log; dipakai klien untuk mengirim penilaian jempol */
+  logId?: string;
 };
 
 const MIN_SIMILARITY = Number(process.env.RAG_MIN_SIMILARITY ?? 0.5);
@@ -95,8 +97,17 @@ async function logUnanswered(question: string) {
 /**
  * @param previousQuestion pertanyaan warga sebelumnya (opsional). Dipakai agar
  * jawaban atas pertanyaan klarifikasi ("yang untuk usaha") tetap nyambung.
+ * @param onDelta dipanggil dengan potongan teks jawaban saat model masih menulis. Balasan khusus
+ * (KLARIFIKASI / TIDAK_ADA_DATA) ditahan sampai selesai dan tidak pernah dikirim lewat sini.
  */
-export async function ask(rawQuestion: string, previousQuestion?: string): Promise<Answer> {
+async function answerQuestion(
+  rawQuestion: string,
+  previousQuestion?: string,
+  onDelta?: (chunk: string) => void,
+  opts?: { log?: boolean },
+): Promise<Answer> {
+  // uji dari admin tidak boleh mengotori daftar pertanyaan tak terjawab milik warga
+  const log = opts?.log === false ? async (_q: string) => {} : logUnanswered;
   const question = rawQuestion.trim().slice(0, MAX_QUESTION_LENGTH);
   if (!question) return { answer: "Silakan tulis pertanyaan Anda.", answered: false, sources: [] };
   const previous = previousQuestion?.trim().slice(0, MAX_QUESTION_LENGTH) || undefined;
@@ -117,7 +128,7 @@ export async function ask(rawQuestion: string, previousQuestion?: string): Promi
   }[]).filter((m) => m.similarity >= MIN_SIMILARITY);
 
   if (matches.length === 0) {
-    await logUnanswered(question);
+    await log(question);
     return { answer: FALLBACK_ANSWER, answered: false, sources: [] };
   }
 
@@ -148,7 +159,18 @@ export async function ask(rawQuestion: string, previousQuestion?: string): Promi
   const contextNames = new Set(top.map((m) => m.service_name));
   const related = [...new Set(matches.map((m) => m.service_name))].filter((n) => !contextNames.has(n));
   const specific = isSpecific(question, top[0].service_name);
-  const text = await generate({
+  // Teks baru boleh ditampilkan setelah jelas bukan balasan khusus. Selama awal teks masih bisa
+  // menjadi awalan "KLARIFIKASI" atau "TIDAK_ADA_DATA", tahan dulu.
+  let raw = "";
+  let released = 0;
+  let streaming = false;
+  const undecided = (s: string) => {
+    const t = s.trimStart().toUpperCase();
+    return t.length < 14 && (!t || "KLARIFIKASI".startsWith(t.slice(0, 11)) || NO_DATA.startsWith(t));
+  };
+  const special = (s: string) => /^\s*(KLARIFIKASI|TIDAK_ADA_DATA)/i.test(s);
+
+  for await (const piece of generateStream({
     system: SYSTEM_PROMPT,
     user:
       `<konteks>\n${context}\n</konteks>\n\n` +
@@ -161,10 +183,20 @@ export async function ask(rawQuestion: string, previousQuestion?: string): Promi
           ? "<catatan>Pertanyaan menyebut keperluan yang spesifik. Langsung jawab dengan layanan yang paling sesuai, tanpa klarifikasi.</catatan>\n\n"
           : "") +
       `<pertanyaan>\n${question}\n</pertanyaan>`,
-  });
+  })) {
+    raw += piece;
+    if (!onDelta || special(raw)) continue;
+    if (!streaming && undecided(raw)) continue;
+    streaming = true;
+    // jangan kirim awalan spasi/baris kosong; kirim sisanya sejak potongan terakhir
+    const out = released === 0 ? raw.trimStart() : raw.slice(released);
+    released = raw.length;
+    if (out) onDelta(out);
+  }
+  const text = raw.trim();
 
   if (!text || text.includes(NO_DATA)) {
-    await logUnanswered(question);
+    await log(question);
     return { answer: FALLBACK_ANSWER, answered: false, sources: [] };
   }
 
@@ -189,4 +221,37 @@ export async function ask(rawQuestion: string, previousQuestion?: string): Promi
     answered: true,
     sources: [...seen].map(([service, similarity]) => ({ service, similarity })),
   };
+}
+
+/** Mencatat setiap pertanyaan beserta hasilnya (tanpa identitas) untuk laporan admin dan penilaian jawaban. */
+async function recordQuestion(question: string, r: Answer): Promise<string | undefined> {
+  try {
+    const { data } = await adminClient()
+      .from("question_log")
+      .insert({
+        question,
+        answer: r.answer.slice(0, 4000),
+        outcome: r.clarify ? "clarify" : r.answered ? "answered" : "refused",
+        service: r.sources[0]?.service ?? null,
+      })
+      .select("id")
+      .single();
+    return data?.id as string | undefined;
+  } catch {
+    return undefined; // pencatatan gagal tidak boleh menggagalkan jawaban
+  }
+}
+
+export async function ask(
+  rawQuestion: string,
+  previousQuestion?: string,
+  onDelta?: (chunk: string) => void,
+  opts?: { log?: boolean },
+): Promise<Answer> {
+  const result = await answerQuestion(rawQuestion, previousQuestion, onDelta, opts);
+  const question = rawQuestion.trim().slice(0, MAX_QUESTION_LENGTH);
+  // skrip eval, uji terminal, dan uji dari admin tidak mencatat
+  if (!question || opts?.log === false || process.env.RAG_LOG_UNANSWERED === "0") return result;
+  const logId = await recordQuestion(question, result);
+  return logId ? { ...result, logId } : result;
 }

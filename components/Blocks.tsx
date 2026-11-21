@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import type { Block } from "@/lib/sop";
+import type { Block } from "@/lib/sop-parse";
 
 /** Mengubah **tebal** menjadi <strong>. Tidak merender HTML dari teks. */
 export function inline(text: string): ReactNode[] {

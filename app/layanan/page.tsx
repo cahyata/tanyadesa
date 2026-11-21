@@ -8,8 +8,8 @@ export const metadata: Metadata = {
   description: "Semua layanan administrasi Desa Sukamaju: syarat, biaya, waktu, dan langkah (data fiktif).",
 };
 
-export default function Page() {
-  const services = allServices().map((s) => ({
+export default async function Page() {
+  const services = (await allServices()).map((s) => ({
     slug: s.slug,
     name: s.name,
     category: s.category,

@@ -10,6 +10,10 @@ export type AdminData = {
   servicesInDb: number;
   chunksInDb: number;
   unansweredTotal: number;
+  /** jumlah catatan yang diabaikan admin (tidak masuk hitungan di atas) */
+  ignoredTotal: number;
+  /** true bila daftar `groups` berisi pertanyaan yang diabaikan */
+  showingIgnored: boolean;
   groups: UnansweredGroup[];
   /** true bila baris yang dibaca dibatasi LIMIT sehingga hitungan kelompok bisa kurang */
   truncated: boolean;
@@ -17,28 +21,30 @@ export type AdminData = {
 
 const ROW_LIMIT = 1000;
 
-const normalize = (q: string) =>
+export const normalize = (q: string) =>
   q
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[?!.\s]+$/g, "")
     .trim();
 
-export async function loadAdminData(): Promise<AdminData> {
+export async function loadAdminData(showIgnored = false): Promise<AdminData> {
   const db = adminClient();
 
-  const [services, chunks, total, rows] = await Promise.all([
+  const [services, chunks, total, ignored, rows] = await Promise.all([
     db.from("sop_services").select("*", { count: "exact", head: true }),
     db.from("sop_chunks").select("*", { count: "exact", head: true }),
-    db.from("unanswered_questions").select("*", { count: "exact", head: true }),
+    db.from("unanswered_questions").select("*", { count: "exact", head: true }).eq("ignored", false),
+    db.from("unanswered_questions").select("*", { count: "exact", head: true }).eq("ignored", true),
     db
       .from("unanswered_questions")
       .select("question, created_at")
+      .eq("ignored", showIgnored)
       .order("created_at", { ascending: false })
       .limit(ROW_LIMIT),
   ]);
 
-  const failed = [services, chunks, total, rows].find((r) => r.error);
+  const failed = [services, chunks, total, ignored, rows].find((r) => r.error);
   if (failed?.error) throw new Error(failed.error.message);
 
   const map = new Map<string, UnansweredGroup>();
@@ -59,7 +65,9 @@ export async function loadAdminData(): Promise<AdminData> {
     servicesInDb: services.count ?? 0,
     chunksInDb: chunks.count ?? 0,
     unansweredTotal: total.count ?? 0,
+    ignoredTotal: ignored.count ?? 0,
+    showingIgnored: showIgnored,
     groups,
-    truncated: (total.count ?? 0) > ROW_LIMIT,
+    truncated: (showIgnored ? (ignored.count ?? 0) : (total.count ?? 0)) > ROW_LIMIT,
   };
 }

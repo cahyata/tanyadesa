@@ -14,6 +14,12 @@ type Msg = {
   options?: string[];
   answered?: boolean;
   error?: boolean;
+  /** jawaban masih ditulis; teks bertambah sedikit demi sedikit */
+  streaming?: boolean;
+  /** id catatan di server, untuk mengirim penilaian */
+  logId?: string;
+  /** penilaian warga: 1 membantu, -1 kurang tepat */
+  rating?: 1 | -1;
 };
 
 const SUGGESTIONS = [
@@ -175,7 +181,7 @@ export default function Chat() {
       cards[cards.length - 1]?.scrollIntoView({ behavior, block: "start" });
       return;
     }
-    endRef.current?.scrollIntoView({ behavior, block: "end" });
+    endRef.current?.scrollIntoView({ behavior: last?.streaming ? "auto" : behavior, block: "end" });
   }, [messages, loading]);
 
   // Pertanyaan dari tombol "Tanya soal layanan ini" di pustaka (/?q=...)
@@ -188,6 +194,26 @@ export default function Chat() {
     void send(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Mengirim penilaian jempol. Tampil langsung; dikembalikan bila gagal terkirim. */
+  async function rate(index: number, value: 1 | -1) {
+    const msg = messages[index];
+    if (!msg?.logId) return;
+    const before = msg.rating;
+    const next = before === value ? undefined : value;
+    setMessages((m) => m.map((x, i) => (i === index ? { ...x, rating: next } : x)));
+    if (next === undefined) return; // dibatalkan di layar saja; penilaian terakhir tetap tersimpan
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: msg.logId, rating: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setMessages((m) => m.map((x, i) => (i === index ? { ...x, rating: before } : x)));
+    }
+  }
 
   async function send(raw: string) {
     const question = raw.trim().slice(0, 500);
@@ -204,23 +230,58 @@ export default function Chat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, previous }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Terjadi gangguan.");
-      setMessages((m) => [
-        ...m,
-        {
-          role: "bot",
-          text: data.answer,
-          answered: data.answered,
-          sources: (data.sources ?? []).map((s: { service: string }) => s.service),
-          options: Array.isArray(data.clarify?.options) ? data.clarify.options : undefined,
-        },
-      ]);
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Terjadi gangguan.");
+      }
+
+      // Balasan berupa baris JSON: potongan teks ("delta"), lalu hasil akhir ("done") atau "error"
+      let partial = "";
+      let finished = false;
+      const apply = (ev: { t: string; [k: string]: unknown }) => {
+        if (ev.t === "delta") {
+          partial += String(ev.text ?? "");
+          setMessages((m) => {
+            const last = m[m.length - 1];
+            return last?.streaming
+              ? [...m.slice(0, -1), { ...last, text: partial }]
+              : [...m, { role: "bot", text: partial, streaming: true }];
+          });
+        } else if (ev.t === "done") {
+          finished = true;
+          const final: Msg = {
+            role: "bot",
+            text: String(ev.answer ?? partial),
+            answered: Boolean(ev.answered),
+            logId: typeof ev.logId === "string" ? ev.logId : undefined,
+            sources: ((ev.sources as { service: string }[]) ?? []).map((s) => s.service),
+            options: Array.isArray((ev.clarify as { options?: string[] })?.options)
+              ? (ev.clarify as { options: string[] }).options
+              : undefined,
+          };
+          setMessages((m) => (m[m.length - 1]?.streaming ? [...m.slice(0, -1), final] : [...m, final]));
+        } else if (ev.t === "error") {
+          throw new Error(String(ev.error ?? "Terjadi gangguan."));
+        }
+      };
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) if (line.trim()) apply(JSON.parse(line));
+      }
+      if (buf.trim()) apply(JSON.parse(buf));
+      if (!finished) throw new Error("Koneksi terputus sebelum jawaban selesai. Silakan coba lagi.");
     } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "bot", text: err instanceof Error ? err.message : "Terjadi gangguan. Silakan coba lagi.", error: true },
-      ]);
+      const msg = err instanceof Error ? err.message : "Terjadi gangguan. Silakan coba lagi.";
+      // buang jawaban setengah jadi, ganti dengan pesan galat
+      setMessages((m) => [...(m[m.length - 1]?.streaming ? m.slice(0, -1) : m), { role: "bot", text: msg, error: true }]);
     } finally {
       setLoading(false);
     }
@@ -334,11 +395,36 @@ export default function Chat() {
                     </div>
                   </div>
                 )}
+                {m.answered && m.logId && (
+                  <div className="rating" role="group" aria-label="Penilaian jawaban">
+                    <span className="rating__q">{m.rating ? "Terima kasih atas penilaiannya." : "Jawaban ini membantu?"}</span>
+                    <button
+                      type="button"
+                      className="chip"
+                      aria-pressed={m.rating === 1}
+                      aria-label="Membantu"
+                      onClick={() => rate(i, 1)}
+                    >
+                      <Icon name="thumbUp" size={14} />
+                      Ya
+                    </button>
+                    <button
+                      type="button"
+                      className="chip"
+                      aria-pressed={m.rating === -1}
+                      aria-label="Kurang tepat"
+                      onClick={() => rate(i, -1)}
+                    >
+                      <Icon name="thumbDown" size={14} />
+                      Kurang tepat
+                    </button>
+                  </div>
+                )}
               </article>
             ),
           )}
 
-          {loading && (
+          {loading && !messages[messages.length - 1]?.streaming && (
             <div className="msg card" role="status">
               <div className="card__head">
                 <span className="pulse" aria-hidden="true" />
@@ -401,7 +487,7 @@ export default function Chat() {
             </button>
           </div>
           <p className="disclaimer">
-            Prototype dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa.
+            Prototype dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa. Pertanyaan dicatat tanpa identitas untuk memperbaiki layanan.
           </p>
         </div>
       </form>

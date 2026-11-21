@@ -13,6 +13,11 @@ function apiKey(): string {
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
+  return (await (await postRaw(path, body)).json()) as T;
+}
+
+/** POST dengan percobaan ulang untuk 429/503. Mengembalikan Response yang sudah pasti ok. */
+async function postRaw(path: string, body: unknown): Promise<Response> {
   const maxAttempts = 4;
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(`${BASE}/${path}`, {
@@ -20,7 +25,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey() },
       body: JSON.stringify(body),
     });
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return res;
 
     const retryable = res.status === 429 || res.status === 503;
     if (retryable && attempt < maxAttempts) {
@@ -58,6 +63,49 @@ export async function embedTexts(texts: string[], taskType: TaskType): Promise<n
   return out;
 }
 
+type GenOpts = { system: string; user: string; temperature?: number };
+
+function genBody(opts: GenOpts) {
+  return {
+    systemInstruction: { parts: [{ text: opts.system }] },
+    contents: [{ role: "user", parts: [{ text: opts.user }] }],
+    generationConfig: { temperature: opts.temperature ?? 0.2, maxOutputTokens: 1500 },
+  };
+}
+
+type GenChunk = { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+
+/** Menghasilkan jawaban bertahap (SSE). Setiap yield adalah potongan teks baru. */
+export async function* generateStream(opts: GenOpts): AsyncGenerator<string> {
+  const res = await postRaw(`models/${CHAT_MODEL}:streamGenerateContent?alt=sse`, genBody(opts));
+  if (!res.body) return;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  const parse = (line: string): string => {
+    if (!line.startsWith("data:")) return "";
+    try {
+      const chunk = JSON.parse(line.slice(5).trim()) as GenChunk;
+      return (chunk.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+    } catch {
+      return "";
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const t = parse(line);
+      if (t) yield t;
+    }
+  }
+  const t = parse(buf);
+  if (t) yield t;
+}
+
 export async function generate(opts: {
   system: string;
   user: string;
@@ -65,11 +113,7 @@ export async function generate(opts: {
 }): Promise<string> {
   const res = await post<{
     candidates?: { content?: { parts?: { text?: string }[] } }[];
-  }>(`models/${CHAT_MODEL}:generateContent`, {
-    systemInstruction: { parts: [{ text: opts.system }] },
-    contents: [{ role: "user", parts: [{ text: opts.user }] }],
-    generationConfig: { temperature: opts.temperature ?? 0.2, maxOutputTokens: 1500 },
-  });
+  }>(`models/${CHAT_MODEL}:generateContent`, genBody(opts));
   const parts = res.candidates?.[0]?.content?.parts ?? [];
   return parts.map((p) => p.text ?? "").join("").trim();
 }

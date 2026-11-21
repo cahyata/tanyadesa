@@ -1,8 +1,11 @@
 "use server";
 
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { checkPassword, endSession, startSession } from "@/lib/admin-auth";
+import { normalize } from "@/lib/admin";
+import { adminClient } from "@/lib/supabase";
+import { checkPassword, endSession, isAdmin, startSession } from "@/lib/admin-auth";
 
 export type LoginState = { error?: string } | null;
 
@@ -41,4 +44,19 @@ export async function login(_prev: LoginState, form: FormData): Promise<LoginSta
 export async function logout(): Promise<void> {
   await endSession();
   redirect("/admin");
+}
+
+/** Menyembunyikan (atau memulihkan) semua catatan pertanyaan yang sama dari daftar tak terjawab. */
+export async function setIgnoredAction(form: FormData): Promise<void> {
+  if (!(await isAdmin())) redirect("/admin");
+  const question = String(form.get("question") ?? "").slice(0, 500);
+  const ignore = form.get("ignore") === "1";
+  const key = normalize(question);
+  if (!key) return;
+
+  const db = adminClient();
+  const { data } = await db.from("unanswered_questions").select("id, question").eq("ignored", !ignore).limit(1000);
+  const ids = (data ?? []).filter((r) => normalize(r.question) === key).map((r) => r.id);
+  if (ids.length) await db.from("unanswered_questions").update({ ignored: ignore }).in("id", ids);
+  revalidatePath("/admin");
 }
