@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import SopForm from "@/components/SopForm";
@@ -33,15 +34,13 @@ export default async function Page({
   return (
     <div className="page">
       <div className="wrap wrap--wide">
-        <nav className="crumbs" aria-label="Lokasi">
-          <Link href="/admin">Admin</Link>
-          <span aria-hidden="true">/</span>
-          <Link href="/admin/sop">SOP</Link>
-          <span aria-hidden="true">/</span>
-          <span>Edit</span>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">{data.slug}</span>
-        </nav>
+        <Breadcrumbs
+          items={[
+            { label: "Admin", href: "/admin" },
+            { label: "SOP", href: "/admin/sop" },
+          ]}
+          current={{ label: data.slug, href: `/admin/sop/edit/${data.slug}` }}
+        />
         <h1 className="page__title">{data.name}</h1>
         {saved && (
           <p className="note note--flush" role="status">

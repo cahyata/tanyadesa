@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import SopForm from "@/components/SopForm";
@@ -19,13 +20,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   return (
     <div className="page">
       <div className="wrap wrap--wide">
-        <nav className="crumbs" aria-label="Lokasi">
-          <Link href="/admin">Admin</Link>
-          <span aria-hidden="true">/</span>
-          <Link href="/admin/sop">SOP</Link>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">Baru</span>
-        </nav>
+        <Breadcrumbs
+          items={[
+            { label: "Admin", href: "/admin" },
+            { label: "SOP", href: "/admin/sop" },
+          ]}
+          current={{ label: "Baru", href: "/admin/sop/baru" }}
+        />
         <h1 className="page__title">Layanan baru</h1>
         {question && (
           <p className="note note--flush">

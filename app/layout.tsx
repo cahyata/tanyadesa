@@ -1,11 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { MobileBar, Rail } from "@/components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "TanyaDesa", template: "%s · TanyaDesa" },
   description: "Asisten AI dan pustaka layanan administrasi Desa Sukamaju (prototype, data fiktif)",
+  applicationName: "TanyaDesa",
+  appleWebApp: { capable: true, title: "TanyaDesa", statusBarStyle: "default" },
 };
+
+// Warna bilah alamat/status ponsel mengikuti hijau TanyaDesa
+export const viewport: Viewport = { themeColor: "#2D5A46" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

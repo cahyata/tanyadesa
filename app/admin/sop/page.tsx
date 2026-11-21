@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { adminEnabled, isAdmin } from "@/lib/admin-auth";
@@ -25,11 +26,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ d
       <div className="wrap wrap--wide">
         <div className="admin-head">
           <div>
-            <nav className="crumbs" aria-label="Lokasi">
-              <Link href="/admin">Admin</Link>
-              <span aria-hidden="true">/</span>
-              <span aria-current="page">SOP</span>
-            </nav>
+            <Breadcrumbs items={[{ label: "Admin", href: "/admin" }]} current={{ label: "SOP", href: "/admin/sop" }} />
             <h1 className="page__title">Kelola SOP</h1>
           </div>
           <Link href="/admin/sop/baru" className="key key--primary">

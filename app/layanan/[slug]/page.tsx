@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ServiceBody } from "@/components/ServiceBody";
@@ -32,14 +33,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   return (
     <div className="page">
       <div className="wrap wrap--read">
-        <nav className="crumbs" aria-label="Jejak halaman">
-          <Link href="/layanan">
-            <Icon name="arrowLeft" size={14} />
-            Pustaka layanan
-          </Link>
-          <span aria-hidden="true">/</span>
-          <Link href={`/layanan?k=${encodeURIComponent(s.category)}`}>{s.category}</Link>
-        </nav>
+        <Breadcrumbs
+          items={[
+            { label: "Pustaka layanan", href: "/layanan", icon: "arrowLeft" },
+            { label: s.category, href: `/layanan?k=${encodeURIComponent(s.category)}` },
+          ]}
+        />
 
         <h1 className="page__title">{s.name}</h1>
         <ServiceBody s={s} />

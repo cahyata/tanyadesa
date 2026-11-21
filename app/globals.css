@@ -823,17 +823,28 @@
 
 /* ---------- Detail layanan ---------- */
 .crumbs {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+.crumbs ol {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-xs);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* pemisah dibuat CSS dengan teks alternatif kosong agar tidak dibacakan */
+.crumbs li + li::before {
+  content: "/" / "";
+  margin-right: var(--space-xs);
 }
 .crumbs a {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
+  color: inherit;
   text-decoration: none;
 }
 .crumbs a:hover {
@@ -1105,7 +1116,7 @@
 .crumbs {
   margin-bottom: var(--space-xs);
 }
-.crumbs [aria-current] {
+.crumbs [aria-current="page"] {
   color: var(--color-ink);
 }
 .sopform__bar {
@@ -1150,11 +1161,20 @@
   font-size: var(--text-sm);
   cursor: pointer;
 }
-.seg button[aria-pressed="true"] {
+.seg button {
+  position: relative;
+}
+.seg button[aria-selected="true"] {
   background: var(--color-sheet);
   color: var(--color-ink);
-  font-weight: 500;
   box-shadow: 0 1px 2px color-mix(in oklab, var(--color-ink) 14%, transparent);
+}
+/* garis bawah sebagai penanda selain warna; tetap tampil di mode kontras tinggi */
+.seg button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 2px;
+  border-block-end: 2px solid var(--color-accent);
 }
 .preview {
   padding: var(--space-md);

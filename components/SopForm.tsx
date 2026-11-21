@@ -43,6 +43,14 @@ export default function SopForm({
         : null,
     [v],
   );
+  // Panah kiri/kanan memindahkan pilihan tab (pola WAI-ARIA tabs; dua tab, jadi bergantian)
+  const onTabKey = (e: React.KeyboardEvent) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const next = e.key === "ArrowLeft" || e.key === "Home" ? "edit" : "preview";
+    setTab(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  };
   const missing = ["Syarat", "Biaya", "Waktu", "Langkah"].filter(
     (h) => !new RegExp(`^## ${h}`, "im").test(v.body),
   );
@@ -129,16 +137,33 @@ export default function SopForm({
           <label htmlFor="body" className="login__label">
             Isi SOP
           </label>
-          <div role="group" aria-label="Tampilan isi" className="seg">
-            <button type="button" aria-pressed={tab === "edit"} onClick={() => setTab("edit")}>
+          <div role="tablist" aria-label="Tampilan isi" className="seg" onKeyDown={onTabKey}>
+            <button
+              type="button"
+              role="tab"
+              id="tab-edit"
+              aria-selected={tab === "edit"}
+              aria-controls="panel-edit"
+              tabIndex={tab === "edit" ? 0 : -1}
+              onClick={() => setTab("edit")}
+            >
               Tulis
             </button>
-            <button type="button" aria-pressed={tab === "preview"} onClick={() => setTab("preview")}>
+            <button
+              type="button"
+              role="tab"
+              id="tab-preview"
+              aria-selected={tab === "preview"}
+              aria-controls="panel-preview"
+              tabIndex={tab === "preview" ? 0 : -1}
+              onClick={() => setTab("preview")}
+            >
               Pratinjau
             </button>
           </div>
         </div>
-        {/* tetap ada di DOM saat pratinjau agar isinya ikut terkirim */}
+        {/* panel tulis tetap ada di DOM saat pratinjau agar isinya ikut terkirim */}
+        <div role="tabpanel" id="panel-edit" aria-labelledby="tab-edit" hidden={tab !== "edit"}>
         <textarea
           id="body"
           name="body"
@@ -149,10 +174,10 @@ export default function SopForm({
           aria-describedby="body-hint"
           className="login__input sopform__body"
           spellCheck={false}
-          hidden={tab === "preview"}
         />
+        </div>
         {tab === "preview" && (
-          <div className="preview" aria-live="polite">
+          <div className="preview" role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" tabIndex={0}>
             <p className="preview__tag">Pratinjau halaman layanan. Belum tersimpan.</p>
             {missing.length > 0 && (
               <p className="note note--flush">

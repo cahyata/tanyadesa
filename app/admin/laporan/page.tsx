@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { adminEnabled, isAdmin } from "@/lib/admin-auth";
@@ -26,11 +27,7 @@ export default async function Page() {
   return (
     <div className="page">
       <div className="wrap wrap--wide">
-        <nav className="crumbs" aria-label="Lokasi">
-          <Link href="/admin">Admin</Link>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">Laporan</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Admin", href: "/admin" }]} current={{ label: "Laporan", href: "/admin/laporan" }} />
         <h1 className="page__title">Laporan</h1>
         <p className="lead">Pertanyaan warga dan penilaian jawaban dalam {r?.days ?? 30} hari terakhir.</p>
 
