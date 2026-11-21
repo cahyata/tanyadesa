@@ -1279,3 +1279,170 @@
     flex-wrap: wrap;
   }
 }
+
+/* Gerak: masuk bertahap, angkat saat disorot, indikator mengetik, jempol memantul.
+   Semuanya mati otomatis bila pengguna memilih mengurangi gerakan. */
+.typing {
+  display: flex;
+  gap: 5px;
+  padding: 2px var(--space-md) var(--space-sm);
+}
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-muted);
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rise {
+    from {
+      opacity: 0;
+      translate: 0 10px;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pop {
+    0% {
+      scale: 1;
+    }
+    40% {
+      scale: 1.35;
+      rotate: -8deg;
+    }
+    100% {
+      scale: 1;
+      rotate: 0deg;
+    }
+  }
+  @keyframes bounce-dot {
+    0%,
+    80%,
+    100% {
+      translate: 0 0;
+      opacity: 0.4;
+    }
+    40% {
+      translate: 0 -4px;
+      opacity: 1;
+    }
+  }
+
+  /* halaman dan bagian-bagiannya */
+  .page .wrap {
+    animation: rise var(--dur-long) var(--ease-out) backwards;
+  }
+  .panel,
+  .tiles .tile,
+  .stats .tile,
+  .index li,
+  .options .option,
+  .qlist > li {
+    animation: rise var(--dur-long) var(--ease-out) backwards;
+    animation-delay: calc(var(--n, 0) * 45ms);
+  }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(1) { --n: 0; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(2) { --n: 1; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(3) { --n: 2; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(4) { --n: 3; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(5) { --n: 4; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(6) { --n: 5; }
+  :is(.panel, .tile, .index li, .option, .qlist > li):nth-child(n + 7) { --n: 6; }
+  .cards > li {
+    animation: rise var(--dur-long) var(--ease-out) backwards;
+    animation-delay: calc(min(var(--n, 0), 8) * 30ms);
+  }
+
+  .cards > li:nth-child(1) { --n: 0; }
+  .cards > li:nth-child(2) { --n: 1; }
+  .cards > li:nth-child(3) { --n: 2; }
+  .cards > li:nth-child(4) { --n: 3; }
+  .cards > li:nth-child(5) { --n: 4; }
+  .cards > li:nth-child(6) { --n: 5; }
+  .cards > li:nth-child(7) { --n: 6; }
+  .cards > li:nth-child(8) { --n: 7; }
+
+  /* angkat sedikit saat disorot atau ditekan */
+  .scard,
+  .index button,
+  .option {
+    transition:
+      translate var(--dur-short) var(--ease-out),
+      box-shadow var(--dur-short) var(--ease-out),
+      border-color var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) var(--ease-out);
+  }
+  .scard:hover,
+  .index button:hover:not(:disabled),
+  .option:hover:not(:disabled) {
+    translate: 0 -2px;
+    box-shadow: 0 6px 16px -8px color-mix(in oklab, var(--color-ink) 28%, transparent);
+  }
+  .scard:active,
+  .index button:active:not(:disabled),
+  .option:active:not(:disabled) {
+    translate: 0 0;
+    box-shadow: none;
+  }
+  .index button svg,
+  .option svg {
+    transition: translate var(--dur-short) var(--ease-out);
+  }
+  .index button:hover svg,
+  .option:hover:not(:disabled) svg {
+    translate: 3px 0;
+  }
+
+  /* ketik: tiga titik melompat selama jawaban mengalir */
+  .typing i {
+    animation: bounce-dot 1.2s ease-in-out infinite;
+  }
+  .typing i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .typing i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  /* penilaian dan pesan status */
+  .rating .chip[aria-pressed="true"] svg {
+    animation: pop var(--dur-long) var(--ease-out);
+  }
+  .rating__q {
+    animation: fade var(--dur-short) var(--ease-out);
+  }
+  .note[role="status"],
+  .login__error,
+  .tryask__out,
+  .preview {
+    animation: rise var(--dur-short) var(--ease-out) backwards;
+  }
+
+  /* bagian yang dibuka dan tombol umum */
+  details[open] > :not(summary) {
+    animation: fade var(--dur-short) var(--ease-out);
+  }
+  .key:not(:disabled),
+  .chip:not(:disabled) {
+    transition:
+      background-color var(--dur-micro) var(--ease-out),
+      border-color var(--dur-micro) var(--ease-out),
+      translate var(--dur-micro) var(--ease-out),
+      scale var(--dur-micro) var(--ease-out);
+  }
+  .chip:active:not(:disabled) {
+    scale: 0.96;
+  }
+}

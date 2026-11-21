@@ -371,6 +371,13 @@ export default function Chat() {
                   </div>
                 )}
                 <Sheet text={m.text} title={m.answered ? m.sources?.[0] : undefined} />
+                {m.streaming && (
+                  <span className="typing" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                )}
                 {m.answered === false && (
                   <p className="note">
                     <Icon name="info" size={16} />
