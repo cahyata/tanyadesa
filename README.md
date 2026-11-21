@@ -21,6 +21,7 @@ Asisten AI dan pustaka layanan untuk administrasi desa. Warga bertanya dengan ba
 - [Struktur proyek](#struktur-proyek)
 - [Keputusan desain](#keputusan-desain)
 - [Keterbatasan](#keterbatasan)
+- [Lisensi](#lisensi)
 
 ## Apa yang bisa dilakukan
 
@@ -195,4 +196,7 @@ supabase/schema.sql      Skema database
 - **Hari libur nasional.** Status buka/tutup kantor belum memperhitungkannya.
 - **Bahasa dan koneksi.** Hanya bahasa Indonesia, dan butuh internet (belum ada cache offline).
 - **Kuota Gemini gratis terbatas.** Pada beban tinggi permintaan bisa ditolak dengan galat 429.
-- **Lisensi.** Belum ada. Hubungi pemilik repo sebelum memakai ulang.
+
+## Lisensi
+
+[MIT](LICENSE). Kode dan SOP contoh boleh dipakai, diubah, dan disebarkan ulang dengan menyertakan pemberitahuan hak cipta. SOP di `data/sop/` adalah data fiktif, jadi sesuaikan dengan aturan desa Anda sebelum dipakai untuk layanan nyata.
