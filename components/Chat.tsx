@@ -175,6 +175,7 @@ export default function Chat() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const behavior = reduce ? "auto" : "smooth";
     const last = messages[messages.length - 1];
+    if (!last) return; // layar sambutan: biarkan di atas agar judul terlihat
     if (!loading && last?.role === "bot") {
       // jawaban panjang: tampilkan dari awal kartu, bukan dari dasarnya
       const cards = document.querySelectorAll<HTMLElement>(".stream .card");
@@ -291,19 +292,21 @@ export default function Chat() {
     <div className="chat">
       <div className="chat__top">
         <span className="tag">Prototype • Desa Sukamaju</span>
-        <button
-          type="button"
-          onClick={() => {
-            setMessages([]);
-            setInput("");
-            fieldRef.current?.focus();
-          }}
-          disabled={messages.length === 0 || loading}
-          className="chip"
-        >
-          <Icon name="plus" size={14} />
-          Percakapan baru
-        </button>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setMessages([]);
+              setInput("");
+              fieldRef.current?.focus();
+            }}
+            disabled={messages.length === 0 || loading}
+            className="chip"
+          >
+            <Icon name="plus" size={14} />
+            Percakapan baru
+          </button>
+        )}
       </div>
 
       <div className="log" role="log" aria-live="polite" aria-busy={loading} aria-label="Percakapan">
@@ -332,6 +335,7 @@ export default function Chat() {
               <p className="welcome__more">
                 Atau <Link href="/layanan">lihat semua layanan</Link> dan baca syaratnya langsung.
               </p>
+              <p className="welcome__privacy">Pertanyaan dicatat tanpa identitas untuk memperbaiki layanan.</p>
             </section>
           )}
 
@@ -488,13 +492,13 @@ export default function Chat() {
                 className="field-input"
               />
             </div>
-            <button type="submit" disabled={loading || !input.trim()} className="key key--primary">
+            <button type="submit" disabled={loading || !input.trim()} className="key key--primary" aria-label="Kirim pertanyaan">
               <Icon name="send" size={16} />
-              Tanya
+              <span className="key__label">Tanya</span>
             </button>
           </div>
           <p className="disclaimer">
-            Prototype dengan data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa. Pertanyaan dicatat tanpa identitas untuk memperbaiki layanan.
+            Prototype, data fiktif. Jawaban dihasilkan AI, pastikan ke kantor desa.
           </p>
         </div>
       </form>
